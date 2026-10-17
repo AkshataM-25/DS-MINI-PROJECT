@@ -1,0 +1,11 @@
+data/similardocs.sqlite3
+data/similardocs.sqlite3-shm
+data/similardocs.sqlite3-wal
+data/*.csv.tmp
+.env
+.pytest_cache/
+__pycache__/
+results/
+data/datasets/
+data/jobs/
+data/results/

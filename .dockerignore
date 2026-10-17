@@ -1,0 +1,13 @@
+.git
+.env
+.pytest_cache
+__pycache__
+**/__pycache__
+.sf
+data
+docs
+frontend
+report
+results
+scripts
+tests

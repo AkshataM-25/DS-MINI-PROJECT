@@ -1,0 +1,115 @@
+services:
+  rabbitmq:
+    image: rabbitmq:3-management
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-similardocs}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-similarDocsLocalOnly}
+    ports:
+      - "127.0.0.1:15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
+  aggregator:
+    build:
+      context: .
+      dockerfile: aggregator/Dockerfile
+    environment:
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USER: ${RABBITMQ_USER:-similardocs}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-similarDocsLocalOnly}
+      DATA_ROOT: /data
+      RESULTS_QUEUE: ${RESULTS_QUEUE:-results}
+      FAILED_QUEUE: ${FAILED_QUEUE:-failed_tasks}
+    volumes:
+      - similardocs_data:/data
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import xmlrpc.client; assert xmlrpc.client.ServerProxy('http://127.0.0.1:9000', allow_none=True).get_time()"
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      dockerfile: worker/Dockerfile
+    environment:
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USER: ${RABBITMQ_USER:-similardocs}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-similarDocsLocalOnly}
+      AGGREGATOR_HOST: aggregator
+      DATA_ROOT: /data
+      TASK_QUEUE: ${TASK_QUEUE:-tasks}
+      RESULTS_QUEUE: ${RESULTS_QUEUE:-results}
+      FAILED_QUEUE: ${FAILED_QUEUE:-failed_tasks}
+      CONTROL_EXCHANGE: ${CONTROL_EXCHANGE:-control}
+      MAX_RETRIES: ${MAX_RETRIES:-3}
+      PREFETCH: ${PREFETCH:-1}
+      WORKER_CLOCK_SKEW_SECONDS: ${WORKER_CLOCK_SKEW_SECONDS:-0}
+    volumes:
+      - similardocs_data:/data
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      aggregator:
+        condition: service_healthy
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    environment:
+      RABBITMQ_HOST: rabbitmq
+      AGGREGATOR_HOST: aggregator
+      DATA_ROOT: /data
+      RABBITMQ_USER: ${RABBITMQ_USER:-similardocs}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-similarDocsLocalOnly}
+      TASK_QUEUE: ${TASK_QUEUE:-tasks}
+      RESULTS_QUEUE: ${RESULTS_QUEUE:-results}
+      FAILED_QUEUE: ${FAILED_QUEUE:-failed_tasks}
+      CONTROL_EXCHANGE: ${CONTROL_EXCHANGE:-control}
+      BLOCK_SIZE: ${BLOCK_SIZE:-8}
+      DEMO_CONTROLS: ${DEMO_CONTROLS:-false}
+      WORKER_CLOCK_SKEW_SECONDS: ${WORKER_CLOCK_SKEW_SECONDS:-0}
+    ports:
+      - "127.0.0.1:${API_HOST_PORT:-8000}:8000"
+    volumes:
+      - similardocs_data:/data
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      aggregator:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=3)"
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  rabbitmq_data:
+    name: similardocs_rabbitmq_data_v3
+  similardocs_data:
+    name: similardocs_shared_data_v3

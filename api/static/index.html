@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#15223a">
+    <title>SimilarDocs — Document Similarity</title>
+    <link rel="stylesheet" href="/static/app.css">
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="#dataset"><span class="brand-icon">SD</span><span><strong>SimilarDocs</strong><small>Document similarity checker</small></span></a>
+      <nav aria-label="Main navigation">
+        <button class="tab active" data-tab="dataset">Dataset</button>
+        <button class="tab" data-tab="run">Run job</button>
+        <button class="tab" data-tab="results">Results</button>
+        <button class="tab" data-tab="system">System</button>
+        <button class="tab" data-tab="demo">Demo center</button>
+        <button class="tab" data-tab="timeline">Timeline</button>
+        <button class="tab" data-tab="experiments">Experiments</button>
+      </nav>
+      <span id="api-health" class="health-pill unknown">Connecting…</span>
+    </header>
+    <main>
+      <div id="alert" class="alert" role="alert" hidden></div>
+      <section id="tab-dataset" class="page active" aria-labelledby="dataset-title">
+        <div class="page-heading"><div><h1 id="dataset-title">Document datasets</h1><p>Create test documents or add your own text files.</p></div></div>
+        <div class="two-column">
+          <article class="card">
+            <h2>Generate test documents</h2><p>Create documents with known matching passages.</p>
+            <form id="generate-form" class="form-grid">
+              <label>Dataset label<input name="name" value="jury-demo" required maxlength="32"></label>
+              <label>Documents<input name="documents" type="number" min="2" max="500" value="30" required></label>
+              <label>Random seed<input name="seed" type="number" min="0" value="42" required></label>
+              <label>Known matching pairs<input name="planted_pairs" type="number" min="0" value="3" required></label>
+              <label class="wide">Match levels, comma separated<input name="overlaps" value="0.3,0.6,0.9" required></label>
+              <button class="button primary" type="submit">Generate dataset</button>
+            </form>
+          </article>
+          <article class="card">
+            <h2>Upload text files</h2><p>Choose 2–500 UTF-8 <code>.txt</code> files (up to 2 MiB each).</p>
+            <form id="upload-form" class="form-grid">
+              <label class="wide">Dataset label<input name="name" value="uploaded-demo" required maxlength="32"></label>
+              <label class="wide">Text files<input name="files" type="file" accept=".txt,text/plain" multiple required></label>
+              <button class="button secondary" type="submit">Add documents</button>
+            </form>
+          </article>
+        </div>
+        <article class="card"><div class="section-title"><div><h2>Available datasets</h2><p>Select a dataset to compare.</p></div><button id="refresh-datasets" class="button quiet">Refresh</button></div><div id="dataset-list" class="dataset-list"><p class="muted">Loading datasets…</p></div></article>
+        <aside class="notice">Similarity shows text overlap. Review the documents; a score alone does not prove plagiarism.</aside>
+      </section>
+      <section id="tab-run" class="page" aria-labelledby="run-title">
+        <div class="page-heading"><div><h1 id="run-title">Run a comparison</h1><p>Choose a dataset and settings, then start the job.</p></div></div>
+        <article class="card form-card">
+          <form id="job-form" class="form-grid">
+            <label class="wide">Dataset<select id="job-dataset" name="dataset_id" required><option value="">Generate or upload a dataset first</option></select></label>
+            <label>Similarity threshold<input name="threshold" type="number" min="0" max="1" step="0.01" value="0.10" required></label>
+            <label>Block size<input name="block_size" type="number" min="1" max="100" value="8" required></label>
+            <label class="checkbox-label wide"><input name="inject_poison" type="checkbox"> Add an invalid task to test retries (demo)</label>
+            <button class="button primary" type="submit">Start comparison</button>
+          </form>
+        </article>
+        <article class="card"><div class="section-title"><div><h2>Job progress</h2><p id="active-job-label">Start or select a job.</p></div><button id="refresh-job" class="button quiet">Refresh</button></div><div id="job-progress" class="empty-state">No job selected.</div></article>
+        <article class="card"><h2>Job history</h2><div id="job-list" class="dataset-list"></div></article>
+      </section>
+      <section id="tab-results" class="page" aria-labelledby="results-title">
+        <div class="page-heading"><div><h1 id="results-title">Similarity results</h1><p>Review document pairs and their scores.</p></div></div>
+        <article class="card"><div class="form-grid result-filters"><label>Job<select id="results-job"></select></label><label>Minimum score<input id="minimum-score" type="number" min="0" max="1" step="0.01" value="0"></label><button id="refresh-results" class="button quiet">Refresh results</button><button id="verify-job" class="button secondary">Run baseline verification</button></div><div id="verify-summary" class="notice" hidden></div><div class="table-wrap"><table><thead><tr><th>Rank</th><th>Document A</th><th>Document B</th><th>Similarity</th><th>Ground truth</th></tr></thead><tbody id="results-body"><tr><td colspan="5" class="muted">Select a job.</td></tr></tbody></table></div><div class="pagination"><span id="results-page-label" class="muted"></span><button id="previous-results" class="button quiet" type="button">Previous</button><button id="next-results" class="button quiet" type="button">Next</button></div></article>
+        <div id="comparison-detail" class="two-column"></div>
+        <aside class="notice">A high score means text overlap, not confirmed plagiarism. Review each pair.</aside>
+      </section>
+      <section id="tab-system" class="page" aria-labelledby="system-title">
+        <div class="page-heading"><div><h1 id="system-title">System status</h1><p>Current service and queue status.</p></div><a class="button secondary" href="http://localhost:15672" target="_blank" rel="noreferrer">Open RabbitMQ</a></div>
+        <div id="system-summary" class="metric-grid"></div>
+        <article class="card"><h2>Service status</h2><div id="service-status" class="service-status"></div></article>
+        <div class="two-column"><article class="card"><h2>Service addresses</h2><div id="dns-list" class="dataset-list"></div></article><article class="card"><h2>Queues</h2><div id="queue-list" class="queue-list"></div></article></div>
+        <article class="card"><div class="section-title"><div><h2>Workers</h2></div><button id="kill-worker" class="button danger" hidden>Kill a worker (demo)</button></div><div id="worker-list" class="dataset-list"></div></article>
+      </section>
+      <section id="tab-demo" class="page" aria-labelledby="demo-title">
+        <div class="page-heading"><div><h1 id="demo-title">Demonstrations</h1><p>Run the demos from this page.</p></div></div>
+        <div id="demo-control-warning" class="alert" hidden>Demo controls are disabled. Enable DEMO_CONTROLS and restart the API and workers.</div>
+        <article class="card">
+          <div class="form-grid">
+            <label class="wide">Dataset for demonstrations<select id="demo-dataset"><option value="">Loading datasets…</option></select></label>
+          </div>
+        </article>
+        <div class="two-column">
+          <article class="card">
+            <h2>Queue demo</h2>
+            <p>Pause workers, submit a job, then resume workers to process the queued tasks.</p>
+            <div class="demo-actions"><button id="pause-workers" class="button secondary">Pause all workers</button><button id="submit-queued-job" class="button primary">Submit job to queue</button><button id="resume-workers" class="button secondary">Resume all workers</button></div>
+            <p id="queue-demo-status" class="demo-status" aria-live="polite">Choose a dataset. System queue telemetry refreshes while this page is open.</p>
+          </article>
+          <article class="card">
+            <h2>Retry demo</h2>
+            <p>Send one invalid task to test retries and failure handling.</p>
+            <button id="start-poison-demo" class="button danger">Run retry demo</button>
+            <p id="poison-demo-status" class="demo-status" aria-live="polite">This demo sends an invalid task.</p>
+          </article>
+        </div>
+        <article class="card">
+          <h2>Worker failure demo</h2>
+          <p>Start the workload, then stop one busy worker. The remaining workers should finish the job.</p>
+          <div class="demo-actions"><button id="prepare-fault-dataset" class="button secondary">Prepare 500-document dataset</button><button id="start-fault-job" class="button primary" disabled>Start workload</button><button id="kill-demo-worker" class="button danger" disabled>Stop one worker (demo)</button></div>
+          <p id="fault-demo-status" class="demo-status" aria-live="polite">At least two workers are needed.</p>
+        </article>
+        <article class="card">
+          <h2>Timeline demo</h2>
+          <p>Change the worker-reported time, then compare the event orders in Timeline.</p>
+          <div class="form-grid demo-clock-form"><label>Worker time offset (seconds)<input id="demo-clock-skew" type="number" min="-86400" max="86400" step="60" value="-3600"></label><div class="demo-actions"><button id="start-clock-demo" class="button secondary">Run timeline demo</button><button id="reset-clock-skew" class="button quiet">Reset offset</button></div></div>
+          <p id="clock-demo-status" class="demo-status" aria-live="polite">Only the displayed worker time changes.</p>
+        </article>
+        <article class="card">
+          <h2>Worker benchmark</h2>
+          <p>Compare job times using the running workers. This does not start containers.</p>
+          <div class="demo-actions"><label class="inline-label">Repeats<input id="benchmark-repeats" type="number" min="1" max="5" value="3"></label><button id="run-browser-benchmark" class="button primary">Run benchmark</button><button id="open-experiments" class="button quiet">View results</button></div>
+          <p id="browser-benchmark-status" class="demo-status" aria-live="polite">Start up to four workers to compare worker counts.</p>
+        </article>
+      </section>
+      <section id="tab-timeline" class="page" aria-labelledby="timeline-title">
+        <div class="page-heading"><div><h1 id="timeline-title">Event timeline</h1><p>Compare event order by clock time and Lamport counter.</p></div></div>
+        <article class="card"><div class="form-grid"><label>Job<select id="timeline-job"></select></label><button id="refresh-timeline" class="button quiet">Refresh timeline</button></div><p id="skew-notice" class="notice" hidden>SIMULATED wall-clock skew is enabled for worker reports. It changes reported timestamps only, never task execution.</p><div class="timeline-columns"><div><h2>Wall-clock order</h2><ol id="wall-timeline" class="timeline"></ol></div><div><h2>Lamport order</h2><ol id="lamport-timeline" class="timeline"></ol></div></div></article>
+      </section>
+      <section id="tab-experiments" class="page" aria-labelledby="experiments-title">
+        <div class="page-heading"><div><h1 id="experiments-title">Worker benchmarks</h1><p>Recorded job times for different worker counts.</p></div></div>
+        <article class="card"><div id="experiments-list" class="dataset-list"><p class="muted">No benchmark reports yet.</p></div><svg id="benchmark-chart" viewBox="0 0 720 300" role="img" aria-label="Measured runtime by worker count"></svg></article>
+      </section>
+    </main>
+    <footer>SimilarDocs · Text similarity checker</footer>
+    <script src="/static/app.js?v=20261017-5" defer></script>
+  </body>
+</html>
