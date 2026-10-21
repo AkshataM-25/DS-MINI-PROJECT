@@ -1,43 +1,138 @@
-# SimilarDocs — Distributed Document Similarity Lab
+﻿# SimilarDocs
 
-SimilarDocs compares each unique pair in a document corpus by distributing block-pair tasks through RabbitMQ to independent worker containers. The API serves an offline dashboard, the workers calculate real similarity scores, and the aggregator de-duplicates results and saves completed reports.
+SimilarDocs is a distributed document similarity platform designed to evaluate textual overlap between documents at scale. It distributes document-pair workloads across multiple worker containers using RabbitMQ, aggregates the results through a central coordinator, and exposes a browser-based dashboard for dataset management, job execution, validation, and benchmarking.
 
-**A similarity score indicates textual overlap; it is not proof of plagiarism. A human must review the results.** The included synthetic corpus is demonstration data, not real student work.
+The platform is intended for research, demonstration, and evaluation workflows rather than production-grade plagiarism detection. A similarity score reflects lexical overlap and should always be reviewed by a human before any decision is made.
 
-## Start on Windows
+## Overview
 
-Prerequisites: Windows 11, Docker Desktop with the Linux/WSL2 engine running, Docker Compose v2, and Python 3.12 for host tools. Open PowerShell in the project root:
+SimilarDocs processes a corpus of text documents by:
+
+- generating fixed-size shingles from document text,
+- comparing document pairs using Jaccard similarity,
+- distributing tasks across independent worker services,
+- aggregating results into a single validated report,
+- exposing the workflow through a local dashboard and API.
+
+The project includes a synthetic evaluation dataset, a distributed processing pipeline, a baseline verification tool, and a benchmarking harness for measuring execution performance across varying worker counts.
+
+## Key Features
+
+- Distributed task execution using RabbitMQ and containerized workers
+- Centralized aggregation and result persistence
+- Browser-based dashboard for dataset generation, uploads, job control, and reporting
+- Integrity checks and baseline verification against a ground-truth manifest
+- Benchmarking utilities for measuring runtime performance and scalability
+- Demo controls for fault injection, pause/resume behavior, worker failure simulation, and clock skew testing
+
+## System Architecture
+
+The project is composed of four main services:
+
+- API service: manages datasets, jobs, dashboard interactions, and status polling
+- Worker services: consume tasks and compute similarity metrics for document pairs
+- Aggregator: receives worker results, deduplicates task output, and persists reports
+- RabbitMQ: provides durable task, result, and failure queues for asynchronous processing
+
+For N documents, the system evaluates N(N-1)/2 unordered pairs. This makes the workload scale rapidly as larger corpora are introduced.
+
+## Prerequisites
+
+The system is designed to run locally using Docker and Python.
+
+Required software:
+
+- Windows 11 or a compatible local environment
+- Docker Desktop with the Linux/WSL2 engine enabled
+- Docker Compose v2
+- Python 3.12 for host-side tools and tests
+
+## Quick Start
+
+From the project root, start the distributed stack:
 
 ```powershell
 docker compose up -d --build --scale worker=4
 docker compose ps
 ```
 
-Open:
+Once the services are running, open the following in a browser:
 
-- Dashboard/API: <http://localhost:8000/>
-- FastAPI/OpenAPI: <http://localhost:8000/docs>
-- RabbitMQ management: <http://localhost:15672/> (default local-only login is `similardocs` / `similarDocsLocalOnly`)
+- Dashboard: http://localhost:8000/
+- API documentation: http://localhost:8000/docs
+- RabbitMQ management: http://localhost:15672/
 
-Compose publishes only API port `8000` and RabbitMQ management port `15672`. AMQP and aggregator XML-RPC remain on the Compose network. The API, workers, and aggregator share a Docker-managed named volume at `/data`; no Windows data bind mount is used.
+Default RabbitMQ credentials:
 
-The dashboard's **Dataset** tab can generate a seeded synthetic corpus directly into `/data`, or upload UTF-8 `.txt` files. A new install does not need a preloaded corpus. In **Run job**, choose a dataset, threshold, block size, and optionally the explicitly simulated poison task. The dashboard displays the returned job ID and polls real status. **System** shows live service health, queue depths, worker replicas, and Compose DNS addresses; **Timeline** and **Experiments** show recorded job events and measured benchmark reports.
+- Username: `similardocs`
+- Password: `similarDocsLocalOnly`
 
-The **Demo center** runs jury demonstrations from the browser: pause and resume active task consumers to show queued work, inject a retry-then-failed poison task, prepare and interrupt a larger worker job, set/reset simulated wall-clock skew, and run a real benchmark over the worker containers already started. Worker pause, simulated clock-skew, and worker-kill controls are enabled in the local `.env`; both the API and RabbitMQ management ports bind to loopback. The worker-failure workload deliberately exits a worker process. The browser benchmark measures currently running worker containers and cannot create or scale Docker containers; start the desired number before the presentation.
+## Typical Usage Workflow
 
-Optional local configuration:
+### 1. Create or upload a dataset
+
+The dashboard includes a Dataset tab that can:
+
+- generate a synthetic corpus with seeded values,
+- upload UTF-8 text documents,
+- validate the dataset prior to job submission.
+
+### 2. Submit a job
+
+The Run job screen allows the user to select:
+
+- dataset,
+- similarity threshold,
+- block size,
+- optional simulated poison task.
+
+The system returns a job ID and updates the status as workers complete tasks.
+
+### 3. Review results
+
+Completed jobs provide:
+
+- ranked document-pair comparisons,
+- highlighted shared shingles,
+- integrity validation status,
+- baseline verification output.
+
+### 4. Demonstrate behavior and performance
+
+The Demo center supports local experimentation and evaluation, including:
+
+- pausing and resuming worker consumers,
+- simulating retries and failed tasks,
+- interrupting in-flight work,
+- adjusting simulated worker clock skew,
+- benchmarking the active worker pool.
+
+## Configuration
+
+To create a local environment file:
 
 ```powershell
 Copy-Item .env.example .env
 ```
 
-Edit `.env` before starting Compose to change the host API port, queue names, broker credentials, retries, prefetch, demo controls, clock-skew simulation, or the default block size. The prescribed/default API host port is `8000`; if another local project already owns it, set `API_HOST_PORT=8001` and use `http://localhost:8001` for the dashboard and tools. `DEMO_CONTROLS=true` enables explicit local demonstration actions. Keep the API and broker management interfaces on loopback; do not expose the unauthenticated demo API to a public network. To disable demo actions, set `DEMO_CONTROLS=false` and recreate the API and workers.
+The `.env` file may be used to configure:
 
-```powershell
-docker compose up -d --build --scale worker=3 --force-recreate api worker
-```
+- host API port,
+- queue names,
+- RabbitMQ credentials,
+- retry counts,
+- task prefetch behavior,
+- demo controls,
+- simulated clock skew,
+- default block size.
 
-Scale the worker service before a presentation benchmark (the browser Demo center can vary active consumers but does not create containers):
+By default, the API is exposed on port 8000. If that port is already in use by another local service, set `API_HOST_PORT` to a different value, such as `8001`, and use the corresponding URL.
+
+The demo controls are intended for local-only testing and should not be exposed to a public network. If demonstration actions are not required, set `DEMO_CONTROLS=false` and recreate the API and worker services.
+
+## Scaling and Maintenance
+
+To increase the worker pool before a presentation or benchmark run:
 
 ```powershell
 docker compose up -d --scale worker=5 worker
@@ -45,23 +140,19 @@ docker compose ps
 docker compose logs -f worker
 ```
 
-`docker compose down` stops services but retains the named data and RabbitMQ volumes. Avoid `docker compose down -v` unless intentionally deleting all retained demo data.
+To stop the system without deleting retained data volumes:
 
-## Evaluation flow
+```powershell
+docker compose down
+```
 
-1. Generate a 30-document synthetic dataset in Dataset.
-2. Submit a job and observe status, per-worker contributions, and both integrity badges in Run job.
-3. Inspect ranked comparisons, click a pair to review highlighted shared shingles, and run baseline verification in Results.
-4. In Demo center, pause workers, submit a job, watch the ready queue increase in System, then resume workers and watch it drain.
-5. Run the simulated poison task and worker-failure demonstrations from Demo center; observe retries, failed queue, broker redelivery, integrity checks, and baseline verification.
-6. Run the clock-order demo and compare both Timeline orderings; reset the simulated offset afterward.
-7. Run the measured benchmark from Demo center, then open Experiments to inspect the saved report.
+Avoid `docker compose down -v` unless the retained data and RabbitMQ state should be removed intentionally.
 
-The complete, timed script and fault demonstrations are in [`docs/demo-script.md`](docs/demo-script.md). PowerShell helpers are under [`scripts/`](scripts/).
+## Host Utilities and Verification
 
-## Host tools
+The project includes command-line utilities for dataset generation, baseline evaluation, job verification, and benchmarking.
 
-Install the test dependency (the distributed services install their own pinned dependencies in their images):
+Install the test dependency:
 
 ```powershell
 python -m pip install -r requirements-test.txt
@@ -75,49 +166,60 @@ python -m tools.generate_corpus --output data/datasets/local-demo --documents 30
 python -m tools.baseline --dataset data/datasets/local-demo --threshold 0.1
 ```
 
-To generate the same seeded corpus locally **and** in the Compose named volume:
+Generate the same seeded dataset locally and in the Compose-managed data volume:
 
 ```powershell
 python -m tools.generate_corpus --output data/datasets/jury-demo --documents 30 --seed 42 --planted-pairs 3 --api-url http://localhost:8000
 ```
 
-Verify a finished Compose job against the shared algorithm and its ground-truth manifest:
+Verify a completed Compose job against the shared algorithm and the ground-truth manifest:
 
 ```powershell
 python -m tools.verify --job-id <JOB_UUID> --api-url http://localhost:8000
 ```
 
-Benchmark 1, 2, 3, and 4 workers with one discarded warm-up and three timed jobs per worker count:
+Benchmark worker counts from 1 to 4 with a warm-up run and repeated executions:
 
 ```powershell
 python -m tools.benchmark --api-url http://localhost:8000 --dataset-id <DATASET_ID> --max-workers 4 --repeats 3
 ```
 
-The benchmark records host-measured end-to-end times, raw repeats, throughput, speedup, efficiency, CPU count, and job IDs under `results/`; it imports the JSON into the API volume for the dashboard. It requires the Docker Engine and a dataset already visible in the API. A small workload can get slower as workers are added; the tool reports measured values without smoothing them.
+The benchmark records end-to-end timing, throughput, speedup, efficiency, CPU information, and related job metadata under the results directory. It requires a visible dataset in the API and a running Docker environment.
 
-## Architecture and contracts
+## Architecture and Processing Model
 
-- For `N` documents the system compares `N(N−1)/2` unordered pairs; 200 documents imply 19,900 pairs.
-- The API normalizes documents and stores stable five-word shingle sets under `/data/datasets/<dataset_id>/processed/`.
-- It partitions documents into blocks. Each block pair `i <= j` is one task; diagonal blocks compare `k < l` and cross-block tasks compare every cross pair.
-- RabbitMQ uses durable `tasks`, `results`, and `failed_tasks` queues and a durable `control` fanout exchange. Task/result messages are persistent. Workers use prefetch 1 and manual acknowledgements; a worker publishes the result before acknowledging its task.
-- The aggregator is a threaded XML-RPC server on internal port 9000 and a RabbitMQ results consumer. It protects in-memory job state with a lock, ignores duplicate task IDs, and persists completed JSON reports under `/data/jobs/`.
-- Each message/event carries a Lamport counter. Optional `WORKER_CLOCK_SKEW_SECONDS` changes only a worker's reported wall timestamp and is visibly labelled simulated.
-- Similarity uses lowercase text, removes punctuation, splits on whitespace, forms contiguous five-word shingles, hashes them using BLAKE2b with an 8-byte digest, and computes Jaccard similarity. Empty shingle sets score `0.0`.
+The platform follows a deterministic distributed processing model:
 
-More detail: [`docs/architecture.md`](docs/architecture.md), [`docs/concept-evidence.md`](docs/concept-evidence.md), and [`docs/limitations.md`](docs/limitations.md).
+- For N documents, it evaluates N(N-1)/2 unordered pairs.
+- Documents are normalized and converted into stable five-word shingles.
+- Work is partitioned into blocks for parallel evaluation.
+- RabbitMQ uses durable queues for tasks, results, and failed-job workflows.
+- The aggregator locks job state and ignores duplicate task IDs.
+- Similarity is computed using Jaccard similarity over hashed shingles.
+- Empty shingle sets are treated as a similarity score of 0.0.
 
-## API highlights
+Additional design and evaluation details are available in:
+
+- [docs/architecture.md](docs/architecture.md)
+- [docs/concept-evidence.md](docs/concept-evidence.md)
+- [docs/limitations.md](docs/limitations.md)
+- [docs/demo-script.md](docs/demo-script.md)
+
+## API Highlights
+
+The system exposes the following API areas:
 
 - `GET /api/health`, `GET /api/system`, `GET /api/system/dns?name=worker`
 - `GET /api/datasets`, `POST /api/datasets/generate`, `POST /api/datasets/upload`
 - `POST /api/jobs`, `GET /api/jobs`, `GET /api/jobs/{job_id}`
 - `GET /api/jobs/{job_id}/results`, `POST /api/jobs/{job_id}/verify`
-- `GET /api/jobs/{job_id}/timeline?order=wall|lamport`
-- `POST /api/system/worker-consumers`, `POST /api/system/clock-skew`, and `POST /api/system/kill-random-worker` (only when `DEMO_CONTROLS=true`)
+- `GET /api/jobs/{job_id}/timeline?order=wall`
+- `POST /api/system/worker-consumers`, `POST /api/system/clock-skew`, `POST /api/system/kill-random-worker` (demo mode only)
 - `GET /api/experiments`, `POST /api/experiments/import`
 
-## Tests and verification boundaries
+## Testing and Verification Boundaries
+
+Run the project validation suite:
 
 ```powershell
 python -m pytest -q
@@ -125,8 +227,40 @@ python -m compileall -q api common worker aggregator tools tests
 docker compose config --quiet
 ```
 
-Unit, API-in-process, XML-RPC loopback, baseline, task-contract, and mocked benchmark tests do not require Docker. Only a live Compose run can prove container startup, broker delivery/redelivery, DNS aliases, scaled consumers, or actual benchmark values. Do not describe those as verified until Docker is running and the demo is observed.
+Unit tests, API-level verification, XML-RPC validation, and baseline checks can run without Docker. Live Compose validation is necessary to confirm container startup, broker delivery and redelivery, DNS resolution, scaling behavior, and actual benchmark results.
 
-Run `.\scripts\smoke.ps1` to build/start the stack with two workers, create a small synthetic dataset, submit a real job, and require both integrity checks plus baseline verification. To reuse a dataset, pass `-DatasetId <DATASET_ID>`.
+The project also includes a smoke script for end-to-end validation:
 
-`frontend/` is a retained React/Vite prototype from the earlier version. Compose does not build or serve it; the evaluator-ready offline dashboard is `api/static/` and needs no Node installation or external CDN.
+```powershell
+./scripts/smoke.ps1
+```
+
+This script starts the stack with a small worker configuration, generates a dataset, submits a real job, and validates both integrity checks and baseline results.
+
+## Project Structure
+
+```text
+.
+├── aggregator/
+├── api/
+├── common/
+├── data/
+├── docs/
+├── frontend/
+├── report/
+├── results/
+├── scripts/
+├── tests/
+├── tools/
+├── worker/
+├── README.md
+├── docker-compose.yml
+├── pytest.ini
+├── requirements-test.txt
+├── test_rabbitmq.py
+└── .env.example
+```
+
+## Important Note
+
+A similarity score represents textual overlap and should not be interpreted as proof of plagiarism or misconduct. The synthetic dataset included in this project is a demonstration corpus and not real academic or personal content. Human review remains essential for interpretation and decision-making.
