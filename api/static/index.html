@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#15223a">
     <title>SimilarDocs — Document Similarity</title>
-    <link rel="stylesheet" href="/static/app.css">
+    <link rel="stylesheet" href="/static/app.css?v=20261021-1">
   </head>
   <body>
     <header class="topbar">
@@ -24,21 +24,42 @@
     <main>
       <div id="alert" class="alert" role="alert" hidden></div>
       <section id="tab-dataset" class="page active" aria-labelledby="dataset-title">
-        <div class="page-heading"><div><h1 id="dataset-title">Document datasets</h1><p>Create test documents or add your own text files.</p></div></div>
+        <section class="intro-panel" aria-labelledby="intro-title">
+          <div class="intro-copy">
+            <p class="eyebrow">A DISTRIBUTED DOCUMENT-COMPARISON PROJECT</p>
+            <h1 id="intro-title">Find documents that contain similar text.</h1>
+            <p>Comparing a large collection one pair at a time can be slow. SimilarDocs splits the work across worker services, then ranks document pairs by textual overlap for a person to review.</p>
+            <div class="intro-actions">
+              <button id="intro-generate" class="button primary" type="button">Try sample documents</button>
+              <button id="intro-upload" class="button secondary" type="button">Upload my .txt files</button>
+            </div>
+            <p class="intro-use-case"><strong>Where this can help:</strong> educators reviewing submissions, editors checking drafts, or teams finding repeated content in a document archive.</p>
+          </div>
+          <aside class="intro-flow" aria-label="How SimilarDocs works">
+            <h2>How it works</h2>
+            <ol>
+              <li><strong>Add documents</strong><span>Generate a safe sample dataset or upload text files.</span></li>
+              <li><strong>Compare in parallel</strong><span>RabbitMQ distributes comparison tasks to workers.</span></li>
+              <li><strong>Review likely matches</strong><span>Inspect ranked pairs, scores, and highlighted shared text.</span></li>
+            </ol>
+            <p class="intro-limit">A score signals text overlap; it does not prove plagiarism. Human review is essential.</p>
+          </aside>
+        </section>
+        <div class="page-heading"><div><h2 id="dataset-title">Start with a dataset</h2><p>Use generated documents to explore the project, or upload your own UTF-8 text files.</p></div></div>
         <div class="two-column">
           <article class="card">
-            <h2>Generate test documents</h2><p>Create documents with known matching passages.</p>
+            <h2>Generate sample documents</h2><p>Create synthetic text files with known overlapping passages. This is the quickest way to try the comparison.</p>
             <form id="generate-form" class="form-grid">
               <label>Dataset label<input name="name" value="jury-demo" required maxlength="32"></label>
               <label>Documents<input name="documents" type="number" min="2" max="500" value="30" required></label>
-              <label>Random seed<input name="seed" type="number" min="0" value="42" required></label>
-              <label>Known matching pairs<input name="planted_pairs" type="number" min="0" value="3" required></label>
-              <label class="wide">Match levels, comma separated<input name="overlaps" value="0.3,0.6,0.9" required></label>
+              <label>Random seed<input name="seed" type="number" min="0" value="42" required><small class="field-hint">Keeping the same seed reproduces the same sample.</small></label>
+              <label>Pairs with planted overlap<input name="planted_pairs" type="number" min="0" value="3" required><small class="field-hint">Sample pairs with deliberately repeated passages, for checking results.</small></label>
+              <label class="wide">Sample overlap levels<input name="overlaps" value="0.3,0.6,0.9" required><small class="field-hint">Comma-separated overlap strengths used when creating synthetic matching passages.</small></label>
               <button class="button primary" type="submit">Generate dataset</button>
             </form>
           </article>
           <article class="card">
-            <h2>Upload text files</h2><p>Choose 2–500 UTF-8 <code>.txt</code> files (up to 2 MiB each).</p>
+            <h2>Use your text files</h2><p>Choose 2–500 UTF-8 <code>.txt</code> files (up to 2 MiB each). Only upload files you have permission to use.</p>
             <form id="upload-form" class="form-grid">
               <label class="wide">Dataset label<input name="name" value="uploaded-demo" required maxlength="32"></label>
               <label class="wide">Text files<input name="files" type="file" accept=".txt,text/plain" multiple required></label>
@@ -127,6 +148,6 @@
       </section>
     </main>
     <footer>SimilarDocs · Text similarity checker</footer>
-    <script src="/static/app.js?v=20261017-5" defer></script>
+    <script src="/static/app.js?v=20261021-1" defer></script>
   </body>
 </html>

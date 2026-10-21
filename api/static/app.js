@@ -100,6 +100,16 @@ function showPage(name) {
 
 tabs.forEach((tab) => tab.addEventListener("click", () => showPage(tab.dataset.tab)));
 
+document.querySelector("#intro-generate").addEventListener("click", () => {
+  document.querySelector("#generate-form").scrollIntoView({ behavior: "smooth", block: "center" });
+  document.querySelector('#generate-form input[name="name"]').focus({ preventScroll: true });
+});
+
+document.querySelector("#intro-upload").addEventListener("click", () => {
+  document.querySelector("#upload-form").scrollIntoView({ behavior: "smooth", block: "center" });
+  document.querySelector('#upload-form input[name="files"]').focus({ preventScroll: true });
+});
+
 async function refreshApiHealth() {
   const pill = document.querySelector("#api-health");
   try {
